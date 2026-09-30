@@ -1,0 +1,38 @@
+# Popular science: from a familiar surface down to the hidden mechanism.
+id: science
+character_name: Mira
+character_share: [0.2, 0.35]
+target_seconds: 360
+frames: 60
+
+voice:
+  label: warm alto
+  syllables_per_second: 3.87
+  sentence_pause_s: 0.547
+
+character_sheet: science/character.png
+style_sheet: science/style.png
+
+character_bible: >-
+  Mira is the same recurring small pink axolotl: a soft rounded body, three
+  feathery gills on each side of the head, two round dark eyes, a small
+  smiling mouth, four short legs with four toes each, a long flat tail fin,
+  round goggles pushed up on the head and a short teal lab apron.
+
+role: >-
+  You write the narration for a popular science channel about big questions
+  and everyday mysteries. The viewer starts from something familiar and ends
+  up inside the hidden mechanism that runs it. What is established, what is
+  only a working model and what is still a guess stay apart, and the
+  difference is said in plain speech inside the sentence, never read out as a
+  label.
+
+narrative_direction: >-
+  Open inside the claim that sounds wrong or the scale that sounds
+  impossible. Then go down from the familiar surface into the mechanism, one
+  layer per chapter, testing the idea against what is actually known. The
+  payoff is the moment the mechanism makes the impossible claim feel obvious.
+
+cta: >-
+  Ask which question, impossible scenario or discovery Mira should explore
+  next.

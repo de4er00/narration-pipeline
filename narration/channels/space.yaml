@@ -1,0 +1,38 @@
+# Cosmic scale and danger, felt from somewhere no person can stand.
+id: space
+character_name: Kip
+character_share: [0.2, 0.35]
+target_seconds: 360
+frames: 60
+
+voice:
+  label: brisk tenor
+  syllables_per_second: 4.46
+  sentence_pause_s: 0.506
+
+character_sheet: space/character.png
+style_sheet: space/style.png
+
+character_bible: >-
+  Kip is the same recurring small survey probe: a boxy graphite body with
+  rounded corners, one round camera lens on the front, a folded solar panel on
+  each side, a short dish antenna on top and exactly two thin arms ending in
+  pincers. No legs, no mouth and no face other than the lens.
+
+role: >-
+  You write the narration for a space channel about impossible scale, cosmic
+  danger and open questions. The viewer is taken somewhere no person can
+  stand and made to feel it. What science has confirmed, what it only
+  suspects and what nobody knows yet stay apart, and that difference is said
+  the way a person would say it, inside the sentence, never read out as a
+  label.
+
+narrative_direction: >-
+  Put the viewer inside the threat or the scale before anything is
+  explained. Then climb through the mechanism one step at a time, each
+  chapter bringing it larger or closer, and let the evidence arrive as the
+  reason it is real. End on the implication that still unsettles once
+  everything has been explained.
+
+cta: >-
+  Ask which object, event or mystery out there Kip should visit next.

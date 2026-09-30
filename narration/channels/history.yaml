@@ -1,0 +1,42 @@
+# Everyday life of early humans, told from inside one ordinary problem.
+id: history
+character_name: Tuk
+character_share: [0.35, 0.5]
+target_seconds: 360
+frames: 60
+
+# Measured pace of the narrator voice (see narration/timing.py).
+voice:
+  label: slow baritone
+  syllables_per_second: 3.66
+  sentence_pause_s: 0.472
+
+# Reference sheets attached to image requests, in this order.
+character_sheet: history/character.png
+style_sheet: history/style.png
+
+character_bible: >-
+  Tuk is the same recurring adult prehistoric forager drawn in rough dry
+  strokes: a round sun-browned face, a mop of dark hair tied back with a
+  cord, two thick eyebrows, small dot eyes, a wide nose, a patched hide tunic
+  with one shoulder strap, a string of bone beads and wrapped feet. Exactly
+  two arms and two hands.
+
+role: >-
+  You write the narration for a channel about the everyday life of early
+  humans. The viewer lives one ordinary prehistoric problem from the inside,
+  standing where Tuk stands, and finds out how people really solved it. The
+  humour comes from the situation, never from treating early humans as
+  stupid. What the finds show, what is a careful reconstruction and what
+  nobody can know stay apart in plain speech. When a topic leads to graphic
+  bodily detail, take the equally strong angle that avoids it.
+
+narrative_direction: >-
+  Drop the viewer into the problem while it is happening. Let each chapter
+  try a solution people really used and show what it cost them, with the
+  evidence arriving as proof that this is how it went. Admit the uncertain
+  parts without letting them stall the story. The payoff is the solution that
+  turns out cleverer than it first looked.
+
+cta: >-
+  Ask which part of early human life Tuk should look into next.

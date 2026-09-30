@@ -1,0 +1,21 @@
+# A one-minute channel so that test scripts stay short.
+id: mini
+character_name: Kip
+character_share: [0.2, 0.4]
+target_seconds: 60
+frames: 10
+voice:
+  label: brisk tenor
+  syllables_per_second: 4.46
+  sentence_pause_s: 0.506
+character_sheet: mini/character.png
+style_sheet: mini/style.png
+character_bible: >-
+  Kip is a small boxy survey probe with one round camera lens, two folded
+  solar panels, a short dish antenna and two thin arms ending in pincers.
+role: >-
+  You write the narration for a short space channel.
+narrative_direction: >-
+  Put the viewer inside the scale first, then explain.
+cta: >-
+  Ask which place out there Kip should visit next.
