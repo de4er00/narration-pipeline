@@ -9,7 +9,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .cards import ChannelCard, VideoCard, available
+from . import evaluate as ev
+from .cards import DEFAULT_FRAMES, ChannelCard, VideoCard, available
 from .checks import check_narration, check_visuals, sentences_of
 from .llm import (DEFAULT_MODEL, EXPECTED_REPAIRS, RESEARCH_MODEL, LLMClient, LLMError,
                   estimate_usd)
@@ -63,7 +64,7 @@ def cmd_write(args: argparse.Namespace) -> int:
                                          **visuals}, research_queries=queries)
     high = estimate_usd(args.model, {"writing": 1 + args.repairs, **visuals},
                         research_queries=queries, high=True)
-    print(f"Estimated cost: about ${expected:.2f}, at most ${high:.2f}"
+    print(f"Estimated cost: about ${expected:.2f}, up to ${high:.2f}"
           if expected is not None and high is not None
           else f"No price known for {args.model}; cost will be reported after the run")
 
@@ -156,42 +157,92 @@ def cmd_cut(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_eval(args: argparse.Namespace) -> int:
-    from . import evaluate as ev
+def _shown(path: Path) -> str:
+    """A run path for the report: relative, never a local absolute path."""
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return path.name
 
-    topics = ev.load_topics(Path(args.topics))
-    if args.only:
-        wanted = set(args.only.split(","))
-        topics = [t for t in topics if t.id in wanted]
-    if args.limit:
-        topics = topics[:args.limit]
-    if not topics:
-        print("no topics selected")
-        return 1
-    expected, upper = ev.estimate(len(topics), args.model, args.repairs)
-    print(f"{len(topics)} topics, writing model {args.model}, facts from "
-          f"{args.research_model}, up to {args.repairs} repairs per script")
-    if expected is None:
-        print(f"No price known for {args.model}; the real cost is reported after the run.")
-    else:
-        print(f"Estimated cost: about ${expected:.2f}, at most ${upper:.2f}")
-    if not args.yes:
-        print("Nothing was spent. Re-run with --yes to call the models.")
-        return 1
 
-    out = Path(args.out)
-    results, run_dir = ev.run_eval(topics, _client(args), out, max_repairs=args.repairs,
-                                   research_model=args.research_model)
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    text = ev.report(results, model=args.model, research_model=args.research_model,
-                     run_dir=run_dir.as_posix(), date=date)
-    (out / "results.md").write_text(text, encoding="utf-8")
-    (run_dir / "summary.json").write_text(json.dumps(ev.summarise(results), indent=2),
-                                          encoding="utf-8")
+def _publish(run_dir: Path, settings: ev.Settings, order: list[str],
+             args: argparse.Namespace) -> None:
+    """Score every saved topic of a run and write its reports."""
+    results = [ev.rescore(r) for r in ev.load_results(run_dir, order)]
+    date = settings.started[:10] if settings.started else ev.stamp_date(run_dir)
+    text = ev.report(results, settings, run_dir=_shown(run_dir), date=date)
+    (run_dir / "summary.json").write_text(
+        json.dumps(ev.summarise(results, settings.variants), indent=2), encoding="utf-8")
+    (run_dir / "results.md").write_text(text, encoding="utf-8")
+    if settings.is_main:
+        Path(args.out).mkdir(parents=True, exist_ok=True)
+        (Path(args.out) / "results.md").write_text(text, encoding="utf-8")
     print(text)
     if args.readme:
         ev.update_readme(Path(args.readme), text)
         print(f"Inserted into {args.readme}")
+
+
+def cmd_eval(args: argparse.Namespace) -> int:
+    settings = ev.Settings(mode=ev.BASELINE_ONLY if args.baseline_only else ev.FULL,
+                           frames=args.frames, model=args.model,
+                           research_model=args.research_model, max_repairs=args.repairs)
+    topics = ev.load_topics(Path(args.topics))
+    order = [t.id for t in topics]
+
+    if args.rescore:
+        run_dir = Path(args.rescore)
+        if not run_dir.is_dir():
+            print(f"no run at {run_dir}")
+            return 1
+        _publish(run_dir, ev.read_settings(run_dir) or settings, order, args)
+        return 0
+
+    if args.only:
+        wanted = args.only.split(",")
+        unknown = sorted(set(wanted) - set(order))
+        if unknown:
+            print(f"unknown topic ids: {', '.join(unknown)}")
+            return 1
+        topics = [t for t in topics if t.id in wanted]
+    if args.merge:
+        run_dir = Path(args.merge)
+        saved = ev.read_settings(run_dir) if run_dir.is_dir() else None
+        if not run_dir.is_dir():
+            print(f"no run at {run_dir}")
+            return 1
+        if saved is not None and not saved.same_experiment(settings):
+            print(f"{run_dir} was run with other settings ({saved.mode}, "
+                  f"{saved.frames or 'default'} frames, {saved.model}); not merging")
+            return 1
+        if not args.only:
+            topics = [t for t in topics if ev.needs_run(run_dir, t.id)]
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        run_dir = Path(args.out) / "runs" / stamp
+    if args.limit:
+        topics = topics[:args.limit]
+    if not topics:
+        print("no topics to run")
+        return 0 if args.merge else 1
+
+    frames = settings.frames or DEFAULT_FRAMES
+    expected, high = ev.estimate(len(topics), args.model, args.repairs, frames=frames,
+                                 baseline_only=args.baseline_only)
+    what = ("baseline only" if args.baseline_only else
+            f"facts from {args.research_model}, up to {args.repairs} repairs per script")
+    print(f"{len(topics)} topics ({', '.join(t.id for t in topics)}), {frames} frames, "
+          f"model {args.model}, {what}")
+    if expected is None or high is None:
+        print(f"No price known for {args.model}; the real cost is reported after the run.")
+    else:
+        print(f"Estimated cost: about ${expected:.2f}, up to ${high:.2f}")
+    if not args.yes:
+        print("Nothing was spent. Re-run with --yes to call the models.")
+        return 1
+
+    results = ev.run_eval(topics, _client(args), run_dir, settings)
+    _publish(run_dir, ev.read_settings(run_dir) or settings, order, args)
     return 0 if all("error" not in r for r in results) else 1
 
 
@@ -249,6 +300,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--only", help="comma-separated topic ids")
     p.add_argument("--limit", type=int)
     p.add_argument("--repairs", type=int, default=MAX_REPAIRS)
+    p.add_argument("--frames", type=int,
+                   help="frames per video at the card's frame length, e.g. 80 for 8:00")
+    p.add_argument("--baseline-only", action="store_true",
+                   help="run only the one-request baseline, no facts and no pipeline")
+    p.add_argument("--merge", metavar="RUN_DIR",
+                   help="run into an existing run, replacing its failed or --only topics")
+    p.add_argument("--rescore", metavar="RUN_DIR",
+                   help="recompute metrics and reports of a saved run; free")
     p.add_argument("--readme", help="insert the results table into this README")
     p.add_argument("--yes", action="store_true", help="actually spend money")
     paid(p)

@@ -27,7 +27,7 @@ def test_eval_without_yes_prints_the_estimate_and_spends_nothing(monkeypatch, ca
     topics = Path(__file__).resolve().parent.parent / "eval" / "topics.yaml"
     assert cli.main(["eval", "--topics", str(topics)]) == 1
     out = capsys.readouterr().out
-    assert "Estimated cost: about $" in out and "at most $" in out
+    assert "Estimated cost: about $" in out and "up to $" in out
     assert "Nothing was spent" in out
 
 
@@ -55,8 +55,103 @@ def test_eval_filters_topics(monkeypatch, capsys):
     monkeypatch.setattr(cli, "_client", lambda args: None)
     topics = Path(__file__).resolve().parent.parent / "eval" / "topics.yaml"
     assert cli.main(["eval", "--topics", str(topics), "--only", "fire-before-matches"]) == 1
-    assert "1 topics" in capsys.readouterr().out
+    assert "1 topics (fire-before-matches)" in capsys.readouterr().out
     assert cli.main(["eval", "--topics", str(topics), "--only", "nope"]) == 1
+    assert "unknown topic ids: nope" in capsys.readouterr().out
+
+
+def test_eval_estimates_a_baseline_only_run_at_eighty_frames(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_client", lambda args: None)
+    topics = Path(__file__).resolve().parent.parent / "eval" / "topics.yaml"
+    assert cli.main(["eval", "--topics", str(topics), "--baseline-only",
+                     "--frames", "80"]) == 1
+    out = capsys.readouterr().out
+    assert "9 topics" in out and "80 frames" in out and "baseline only" in out
+    assert "Estimated cost: about $0.53" in out
+
+
+def _two_topics(tmp_path: Path) -> Path:
+    topics = tmp_path / "topics.yaml"
+    topics.write_text("topics:\n" + "".join(
+        f"  - id: t{i}\n    channel: {MINI.as_posix()}\n    title: Jupiter {i}\n"
+        for i in (1, 2)), encoding="utf-8")
+    return topics
+
+
+def _run_dir(tmp_path: Path) -> Path:
+    run_dir = tmp_path / "ev" / "runs" / "20260930T164030Z"
+    run_dir.mkdir(parents=True)
+    return run_dir
+
+
+def test_merge_reruns_only_the_failed_topics_into_the_same_run(monkeypatch, tmp_path, capsys):
+    topics = _two_topics(tmp_path)
+    frames = [{"number": i, "narration": t, "visual": ""} for i, t in enumerate(BASELINE_FRAMES, 1)]
+    llm = FakeLLM(research=[research_text()], script=[script_reply(CLEAN_CHAPTERS)],
+                  baseline=[{"frames": frames}])
+    _use(monkeypatch, llm)
+    assert cli.main(["eval", "--topics", str(topics), "--out", str(tmp_path / "ev"),
+                     "--yes"]) == 0
+    run_dir = next((tmp_path / "ev" / "runs").iterdir())
+    failed = {"topic": {"id": "t2", "channel": MINI.as_posix(), "title": "Jupiter 2"},
+              "error": 'OpenRouter refused: HTTP 401 {"error": "API key expired."}'}
+    (run_dir / "t2.json").write_text(json.dumps(failed), encoding="utf-8")
+    llm.calls.clear()
+    capsys.readouterr()
+
+    assert cli.main(["eval", "--topics", str(topics), "--out", str(tmp_path / "ev"),
+                     "--merge", str(run_dir), "--yes"]) == 0
+    assert llm.count("research") == 1 and "Jupiter 2" in llm.calls[0][1]
+    text = (tmp_path / "ev" / "results.md").read_text(encoding="utf-8")
+    assert "2 topics (mini), 2 finished" in text and "not run" not in text
+    assert ", 1 rerun " in text.splitlines()[0]
+
+    capsys.readouterr()
+    assert cli.main(["eval", "--topics", str(topics), "--merge", str(run_dir)]) == 0
+    assert "no topics to run" in capsys.readouterr().out
+
+
+def test_merge_refuses_a_run_with_other_settings(monkeypatch, tmp_path, capsys):
+    from narration import evaluate as ev
+    run_dir = _run_dir(tmp_path)
+    ev.write_settings(run_dir, ev.Settings(mode=ev.BASELINE_ONLY, frames=80))
+    monkeypatch.setattr(cli, "_client", lambda args: None)
+    assert cli.main(["eval", "--topics", str(_two_topics(tmp_path)),
+                     "--merge", str(run_dir), "--yes"]) == 1
+    assert "other settings" in capsys.readouterr().out
+
+
+def test_rescore_rewrites_the_reports_without_a_model(monkeypatch, tmp_path, capsys):
+    frames = [{"number": i, "narration": t, "visual": ""} for i, t in enumerate(BASELINE_FRAMES, 1)]
+    _use(monkeypatch, FakeLLM(research=[research_text()], script=[script_reply(CLEAN_CHAPTERS)],
+                              baseline=[{"frames": frames}]))
+    topics = _two_topics(tmp_path)
+    assert cli.main(["eval", "--topics", str(topics), "--out", str(tmp_path / "ev"),
+                     "--yes"]) == 0
+    run_dir = next((tmp_path / "ev" / "runs").iterdir())
+    (tmp_path / "ev" / "results.md").unlink()
+    (run_dir / "summary.json").unlink()
+
+    def no_client(args):
+        raise AssertionError("rescoring must not create a client")
+    monkeypatch.setattr(cli, "_client", no_client)
+    readme = tmp_path / "README.md"
+    readme.write_text("# X\n\n<!-- EVAL RESULTS -->\n", encoding="utf-8")
+    assert cli.main(["eval", "--topics", str(topics), "--out", str(tmp_path / "ev"),
+                     "--rescore", str(run_dir), "--readme", str(readme)]) == 0
+    assert (tmp_path / "ev" / "results.md").exists() and (run_dir / "summary.json").exists()
+    assert "| Frames ending mid-clause |" in readme.read_text(encoding="utf-8")
+    assert cli.main(["eval", "--rescore", str(tmp_path / "missing")]) == 1
+
+
+def test_an_experiment_run_does_not_overwrite_the_main_results(monkeypatch, tmp_path):
+    frames = [{"number": i, "narration": t, "visual": ""} for i, t in enumerate(BASELINE_FRAMES, 1)]
+    _use(monkeypatch, FakeLLM(baseline=[{"frames": frames}]))
+    assert cli.main(["eval", "--topics", str(_two_topics(tmp_path)), "--out",
+                     str(tmp_path / "ev"), "--baseline-only", "--frames", "12", "--yes"]) == 0
+    assert not (tmp_path / "ev" / "results.md").exists()
+    run_dir = next((tmp_path / "ev" / "runs").iterdir())
+    assert "12 fixed slots" in (run_dir / "results.md").read_text(encoding="utf-8")
 
 
 def test_check_passes_a_clean_script_and_fails_a_dirty_one(tmp_path, capsys):
