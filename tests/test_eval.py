@@ -105,6 +105,13 @@ def test_a_failed_topic_is_recorded_and_the_run_goes_on(tmp_path):
     assert (run_dir / "topic-0.json").exists()
 
 
+def test_a_script_too_short_to_cut_is_recorded_as_a_failure(tmp_path):
+    short = script_reply([{"title": "t", "narration": "You fall. It's dark."}])
+    results, _ = ev.run_eval(_topics(tmp_path, 1), _llm(script=[short]), tmp_path,
+                             max_repairs=0, stamp="s")
+    assert "10 frames are needed" in results[0]["error"]
+
+
 def test_report_is_ready_for_the_readme(tmp_path):
     results, run_dir = ev.run_eval(_topics(tmp_path), _llm(), tmp_path, stamp="t")
     text = ev.report(results, model=DEFAULT_MODEL, research_model="perplexity/sonar",

@@ -16,8 +16,7 @@ from .pipeline import MAX_REPAIRS, Script, cut, script_problems, write_script
 from .research import Research, collect
 from .storyboard import assemble, write_all
 from .timing import TimingError, segment_sections
-
-log = logging.getLogger("narration")
+from .visuals import design_visuals
 
 
 def slugify(text: str) -> str:
@@ -68,11 +67,13 @@ def cmd_write(args: argparse.Namespace) -> int:
     client = _client(args)
     out = Path(args.out) / video.video_id
     res: Research | None = None
+    spent = 0.0
     if args.facts:
         res = Research.load(Path(args.facts))
     elif not args.no_research:
         res = collect(args.topic, card, client, model=args.research_model)
         res.save(out / "facts.json")
+        spent += res.usd
     if res is not None:
         video.key_facts = res.claims
         print(f"Facts: {len(res.facts)} {res.by_status}")
@@ -92,17 +93,17 @@ def cmd_write(args: argparse.Namespace) -> int:
     print(f"Cut: {len(seg.frames)} frames, {seg.total_seconds / 60:.2f} min, "
           f"broken sentences {seg.broken_sentences}")
 
-    visuals, extra, usd_total = None, [], script.usd + (res.usd if res else 0.0)
+    spent += script.usd
+    visuals, extra = None, []
     if args.visuals:
-        from .visuals import design_visuals
         visuals, reply = design_visuals(video, seg, owner, script, client)
         extra = check_visuals([v.scene_concept for v in visuals],
                               [v.character_present for v in visuals], card)
-        usd_total += reply.usd
+        spent += reply.usd
         for p in extra:
             print(f"  ! {p}")
     board = assemble(video, script, seg, owner, visuals=visuals, research=res,
-                     extra_problems=extra, usd=usd_total)
+                     extra_problems=extra, usd=spent)
     for kind, path in write_all(board, out).items():
         print(f"{kind:<9}{path}")
     print(f"Total ${board.usd:.4f}")
@@ -112,13 +113,13 @@ def cmd_write(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     """Free: run every check on an existing script."""
     card = ChannelCard.load(args.channel)
-    script = _load_script(Path(args.file))
     res = Research.load(Path(args.facts)) if args.facts else None
     if args.frames:
         texts = [t for t in Path(args.file).read_text(encoding="utf-8").splitlines()
                  if t.strip()]
         problems = check_narration(texts, card)
     else:
+        script = _load_script(Path(args.file))
         problems = script_problems(script.chapters, card, res,
                                    final_cta=script.final_cta or None)
         texts = sentences_of(script.chapters)

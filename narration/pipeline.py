@@ -36,6 +36,7 @@ class Script:
     seconds: float = 0.0
     repairs: int = 0
     problems: list[Problem] = field(default_factory=list)
+    # Blocking problems in each version, draft first; -1 for an empty repair.
     history: list[int] = field(default_factory=list)
 
     @property

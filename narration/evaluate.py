@@ -25,7 +25,7 @@ from .llm import ChatClient, LLMError, estimate_usd
 from .pipeline import MAX_REPAIRS, cut, write_script
 from .research import Fact, collect, overstated, unsourced_numbers
 from .storyboard import assemble
-from .timing import Frame, Segmentation, estimate_seconds
+from .timing import Frame, Segmentation, TimingError, estimate_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -167,12 +167,12 @@ def run_eval(topics: list[Topic], client: ChatClient, out_dir: Path, *,
         try:
             result = run_topic(topic, client, max_repairs=max_repairs,
                                research_model=research_model)
-        except LLMError as e:
+        except (LLMError, TimingError) as e:
             # Keep going: the topics already paid for are worth more than a
             # clean abort, and the failure is itself a result.
             logger.error("eval: %s failed: %s", topic.id, e)
             result = {"topic": asdict(topic), "error": str(e)}
-        # Saved per topic, so an interrupted run loses nothing already paid for.
+        # Saved per topic, so an interrupted run keeps every finished topic.
         (run_dir / f"{topic.id}.json").write_text(
             json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         results.append(result)
