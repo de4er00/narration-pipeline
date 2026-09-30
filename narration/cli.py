@@ -11,7 +11,8 @@ from pathlib import Path
 
 from .cards import ChannelCard, VideoCard, available
 from .checks import check_narration, check_visuals, sentences_of
-from .llm import DEFAULT_MODEL, RESEARCH_MODEL, LLMClient, LLMError, estimate_usd
+from .llm import (DEFAULT_MODEL, EXPECTED_REPAIRS, RESEARCH_MODEL, LLMClient, LLMError,
+                  estimate_usd)
 from .pipeline import MAX_REPAIRS, Script, cut, script_problems, write_script
 from .research import Research, collect
 from .storyboard import assemble, write_all
@@ -56,12 +57,14 @@ def cmd_write(args: argparse.Namespace) -> int:
     video = VideoCard(video_id=args.id or slugify(args.topic), title=args.topic,
                       channel=card, main_idea=args.idea or "")
     print(video.summary())
-    calls = {"script": 1, "repair": args.repairs}
-    if args.visuals:
-        calls["visuals"] = 1
+    visuals = {"visuals": 1} if args.visuals else {}
     queries = 0 if (args.facts or args.no_research) else 1
-    usd = estimate_usd(args.model, calls, research_queries=queries)
-    print(f"Estimated cost: up to ${usd:.2f}" if usd is not None
+    expected = estimate_usd(args.model, {"writing": 1 + min(EXPECTED_REPAIRS, args.repairs),
+                                         **visuals}, research_queries=queries)
+    high = estimate_usd(args.model, {"writing": 1 + args.repairs, **visuals},
+                        research_queries=queries, high=True)
+    print(f"Estimated cost: about ${expected:.2f}, at most ${high:.2f}"
+          if expected is not None and high is not None
           else f"No price known for {args.model}; cost will be reported after the run")
 
     client = _client(args)

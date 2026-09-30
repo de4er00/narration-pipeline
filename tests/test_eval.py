@@ -144,12 +144,27 @@ def test_summary_averages_absolute_runtime_error():
     assert agg["baseline"]["runtime_error"] == pytest.approx(0.2)
 
 
-def test_estimate_has_an_expected_value_and_an_upper_bound():
-    expected, upper = ev.estimate(9, DEFAULT_MODEL, max_repairs=2)
-    assert 0 < expected < upper
-    assert upper == pytest.approx(estimate_usd(
-        DEFAULT_MODEL, {"script": 9, "repair": 18, "baseline": 9}, research_queries=9))
+def test_estimate_has_an_expected_value_and_a_high_one():
+    expected, high = ev.estimate(9, DEFAULT_MODEL, max_repairs=2)
+    assert 0 < expected < high
+    assert high == pytest.approx(estimate_usd(
+        DEFAULT_MODEL, {"writing": 27, "baseline": 9}, research_queries=9, high=True))
     assert ev.estimate(9, "unknown/model") == (None, None)
+
+
+def test_estimate_matches_the_first_eval_run():
+    # Six finished topics cost $0.975 with 5 repairs over 6 scripts; the
+    # estimate before that run said $0.78 for nine, about half the real rate.
+    expected, high = ev.estimate(6, DEFAULT_MODEL)
+    assert expected == pytest.approx(0.975, rel=0.03)
+    assert high > 0.975
+
+
+def test_estimate_scales_with_frames_and_can_skip_the_pipeline():
+    base60, _ = ev.estimate(9, DEFAULT_MODEL, baseline_only=True)
+    base80, high80 = ev.estimate(9, DEFAULT_MODEL, baseline_only=True, frames=80)
+    assert base80 == pytest.approx(base60 * 80 / 60, rel=1e-3)
+    assert base80 < high80 < ev.estimate(9, DEFAULT_MODEL)[0]
 
 
 def test_update_readme_inserts_after_the_marker_and_replaces_on_rerun(tmp_path):

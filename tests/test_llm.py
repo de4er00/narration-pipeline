@@ -5,8 +5,8 @@ import json
 import httpx
 import pytest
 
-from narration.llm import (DEFAULT_MODEL, EXPECTED_TOKENS, RESEARCH_USD_PER_QUERY,
-                           LLMClient, LLMError, estimate_usd, price_usd)
+from narration.llm import (CALL_TOKENS, DEFAULT_MODEL, RESEARCH_USD_PER_QUERY, LLMClient,
+                           LLMError, estimate_usd, price_usd)
 
 
 def ok(content: str, *, tin: int = 100, tout: int = 50, cost: float | None = None,
@@ -136,7 +136,22 @@ def test_cost_falls_back_to_the_price_table():
 
 def test_estimates():
     assert price_usd("unknown/model", 1, 1) is None
-    assert estimate_usd("unknown/model", {"script": 1}) is None
-    tin, tout = EXPECTED_TOKENS["script"]
-    one = estimate_usd(DEFAULT_MODEL, {"script": 1}, research_queries=1)
+    assert estimate_usd("unknown/model", {"writing": 1}) is None
+    (tin, tout), (hin, hout) = CALL_TOKENS["writing"]
+    one = estimate_usd(DEFAULT_MODEL, {"writing": 1}, research_queries=1)
     assert one == pytest.approx(tin / 1e6 * 0.20 + tout / 1e6 * 1.20 + RESEARCH_USD_PER_QUERY)
+    high = estimate_usd(DEFAULT_MODEL, {"writing": 1}, high=True)
+    assert high == pytest.approx(hin / 1e6 * 0.20 + hout / 1e6 * 1.20)
+    assert estimate_usd(DEFAULT_MODEL, {"baseline": 1}, scale=2) == pytest.approx(
+        2 * estimate_usd(DEFAULT_MODEL, {"baseline": 1}), rel=1e-3)
+
+
+def test_call_sizes_reproduce_the_first_eval_run():
+    # 6 topics: 6 fact queries, 6 baseline calls and 11 writing calls billed
+    # $0.975 in total; per call, writing cost $0.058-0.067 and baseline
+    # $0.040-0.047.
+    run = estimate_usd(DEFAULT_MODEL, {"writing": 11, "baseline": 6}, research_queries=6)
+    assert run == pytest.approx(0.975, rel=0.03)
+    assert 0.058 <= estimate_usd(DEFAULT_MODEL, {"writing": 1}) <= 0.067
+    assert 0.040 <= estimate_usd(DEFAULT_MODEL, {"baseline": 1}) <= 0.047
+    assert estimate_usd(DEFAULT_MODEL, {"writing": 1}, high=True) >= 0.067

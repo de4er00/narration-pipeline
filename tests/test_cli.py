@@ -117,7 +117,7 @@ def test_write_runs_every_stage_and_saves_the_script_first(monkeypatch, tmp_path
     board = json.loads((out_dir / "jupiter.json").read_text(encoding="utf-8"))
     assert len(board["frames"]) == 11 and board["frames"][0]["image_prompt"]
     assert (out_dir / "jupiter.md").exists()
-    assert "Estimated cost: up to $" in capsys.readouterr().out
+    assert "Estimated cost: about $" in capsys.readouterr().out
     assert [n for n, _ in llm.calls] == ["research", "script", "script", "visuals"]
 
 

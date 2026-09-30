@@ -32,14 +32,18 @@ PRICES: dict[str, tuple[float, float]] = {
 # provider side, so the bill is for the summary, not for the pages read.
 RESEARCH_USD_PER_QUERY = 0.006
 
-# Tokens per call for the estimate. Output includes reasoning tokens, which
-# dominate; the numbers are generous so the estimate errs high.
-EXPECTED_TOKENS: dict[str, tuple[int, int]] = {
-    "script": (4_500, 20_000),
-    "repair": (7_500, 20_000),
-    "visuals": (6_000, 30_000),
-    "baseline": (3_000, 25_000),
+# Billed tokens per call (input, output): the mean and the highest seen in the
+# first eval run, 11 writing and 6 baseline calls. The writing model reasons at
+# length, so a call with a 5k-token prompt bills about 49k in and 44k out.
+# Visuals were not measured; they are assumed to be a writing call with a
+# longer answer. Token counts grow roughly with the frame count (`scale`).
+CALL_TOKENS: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {
+    "writing": ((49_200, 43_600), (53_400, 47_700)),
+    "baseline": ((31_800, 31_300), (34_300, 33_500)),
+    "visuals": ((49_200, 55_000), (53_400, 66_000)),
 }
+# 5 repairs over 6 scripts in the same run.
+EXPECTED_REPAIRS = 0.85
 
 
 class LLMError(RuntimeError):
@@ -75,13 +79,13 @@ def price_usd(model: str, tokens_in: int, tokens_out: int) -> float | None:
     return tokens_in / 1e6 * p_in + tokens_out / 1e6 * p_out
 
 
-def estimate_usd(model: str, calls: dict[str, float],
-                 research_queries: int = 0) -> float | None:
-    """Estimated spend for `calls` = {call kind: count}."""
+def estimate_usd(model: str, calls: dict[str, float], research_queries: int = 0,
+                 *, high: bool = False, scale: float = 1.0) -> float | None:
+    """Spend for `calls` = {call kind: count}; `high` uses the largest calls seen."""
     total = research_queries * RESEARCH_USD_PER_QUERY
     for kind, count in calls.items():
-        tin, tout = EXPECTED_TOKENS[kind]
-        usd = price_usd(model, tin, tout)
+        tin, tout = CALL_TOKENS[kind][1 if high else 0]
+        usd = price_usd(model, round(tin * scale), round(tout * scale))
         if usd is None:
             return None
         total += usd * count

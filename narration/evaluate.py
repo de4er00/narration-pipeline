@@ -18,10 +18,10 @@ from pathlib import Path
 import yaml
 
 from .baseline import write_baseline
-from .cards import ChannelCard, VideoCard
+from .cards import DEFAULT_FRAMES, ChannelCard, VideoCard
 from .checks import (check_narration, cta_follows_card, duplicate_frames,
                      ngram_repeats, paraphrased_neighbours)
-from .llm import ChatClient, LLMError, estimate_usd
+from .llm import EXPECTED_REPAIRS, ChatClient, LLMError, estimate_usd
 from .pipeline import MAX_REPAIRS, cut, write_script
 from .research import Fact, collect, overstated, unsourced_numbers
 from .storyboard import assemble
@@ -146,13 +146,24 @@ def run_topic(topic: Topic, client: ChatClient, *, max_repairs: int = MAX_REPAIR
     }
 
 
-def estimate(n_topics: int, model: str, max_repairs: int = MAX_REPAIRS,
+def estimate(n_topics: int, model: str, max_repairs: int = MAX_REPAIRS, *,
+             frames: int = DEFAULT_FRAMES, baseline_only: bool = False,
              ) -> tuple[float | None, float | None]:
-    """(expected, upper bound) in USD. Expected assumes one repair per script."""
-    def cost(repairs: float) -> float | None:
-        return estimate_usd(model, {"script": n_topics, "repair": n_topics * repairs,
-                                    "baseline": n_topics}, research_queries=n_topics)
-    return cost(min(1, max_repairs)), cost(max_repairs)
+    """(expected, high) in USD: facts + baseline + writing x (1 + repairs).
+
+    Expected uses mean call sizes and the observed repair rate; high uses the
+    largest calls seen and every repair spent.
+    """
+    scale = frames / DEFAULT_FRAMES
+
+    def cost(repairs: float, high: bool) -> float | None:
+        if baseline_only:
+            return estimate_usd(model, {"baseline": n_topics}, high=high, scale=scale)
+        return estimate_usd(model, {"baseline": n_topics,
+                                    "writing": n_topics * (1 + repairs)},
+                            research_queries=n_topics, high=high, scale=scale)
+
+    return cost(min(EXPECTED_REPAIRS, max_repairs), False), cost(max_repairs, True)
 
 
 def run_eval(topics: list[Topic], client: ChatClient, out_dir: Path, *,
