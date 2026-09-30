@@ -154,7 +154,12 @@ def _read(toks: list[_Tok], i: int) -> tuple[Decimal, int] | None:
                 end, j = j + 1, _skip(toks, j + 1)
             if not digits:
                 break
-            return total + group + Decimal("0." + digits), end
+            value = group + Decimal("0." + digits)
+            j = _skip(toks, end)
+            # "one point four million tonnes": the scale applies to the whole decimal.
+            if j < len(toks) and toks[j].low in _SCALES and _SCALES[toks[j].low] < last_scale:
+                return total + value * _SCALES[toks[j].low], j + 1
+            return total + value, end
         elif w in _ORDINALS:
             v = _ORDINALS[w]
             if last is None or last in ("hundred", "scale", "and") or (

@@ -49,6 +49,8 @@ def test_spoken_numbers_from_real_scripts(sentence, expected):
     ("by twenty twenty-four", ["2024"]),
     ("the twenty-first time", ["21"]),
     ("two point five times", ["2.5"]),
+    ("one point four million tonnes", ["1400000"]),
+    ("about two point five billion years", ["2500000000"]),
     ("ten-20 range", ["10", "20"]),
 ])
 def test_digits_scales_years_decimals_and_ordinals(text, expected):
