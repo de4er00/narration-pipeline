@@ -220,7 +220,7 @@ def test_rescore_leaves_failures_alone():
 def test_rescoring_the_first_run_sees_spelled_out_figures():
     results = [ev.rescore(r) for r in ev.load_results(FIRST_RUN)]
     ok = [r for r in results if "error" not in r]
-    assert len(ok) == 6 and len(results) == 9
+    assert len(ok) == 9 and len(results) == 9
     pipe = ev.summarise(ok)["pipeline"]
     assert pipe["figures"] > 1 and pipe["unsourced_numbers"] == 0
     assert pipe["mid_clause_breaks"] == 0 and pipe["clause_breaks"] > 0

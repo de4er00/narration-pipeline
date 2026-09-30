@@ -1,0 +1,18 @@
+{
+  "mode": "full",
+  "frames": null,
+  "model": "openai/gpt-5.6-luna-pro",
+  "research_model": "perplexity/sonar",
+  "max_repairs": 2,
+  "started": "2026-09-30",
+  "merges": [
+    {
+      "at": "2026-09-30T18:27:00Z",
+      "topics": [
+        "octopus-colour",
+        "cant-tickle-yourself",
+        "bees-see-colours"
+      ]
+    }
+  ]
+}

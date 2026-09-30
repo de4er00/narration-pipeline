@@ -14,25 +14,25 @@ Measured in production; the production scripts are not published. The first comp
 
 <!-- EVAL RESULTS -->
 
-Eval run 2026-09-30: 9 topics (history, science, space), 6 finished, 3 not run: API error. 6:00 videos, 60 frames. Writing model `openai/gpt-5.6-luna-pro`, facts from `perplexity/sonar`. Total cost $0.97.
+Eval run 2026-09-30, 3 rerun 2026-09-30: 9 topics (history, science, space), 9 finished. 6:00 videos, 60 frames. Writing model `openai/gpt-5.6-luna-pro`, facts from `perplexity/sonar`. Total cost $1.40.
 
-| Per script, mean over 6 topics | Baseline: one request, 60 fixed slots | Pipeline |
+| Per script, mean over 9 topics | Baseline: one request, 60 fixed slots | Pipeline |
 |---|---:|---:|
 | Frames, call to action included | 60 | 61 |
 | Verbatim-duplicate frames | 0.0 | 0.0 |
 | Four-word phrases used 3+ times | 0.0 | 0.0 |
 | Neighbouring frames that paraphrase each other | 0.0 | 0.0 |
-| Figures in the narration, digits or words | 0.2 | 2.3 |
-| Figures not found in the collected facts | 0.2 | 0.0 |
+| Figures in the narration, digits or words | 0.1 | 2.4 |
+| Figures not found in the collected facts | 0.1 | 0.0 |
 | Disputed or speculative facts stated as fact | 0.0 | 0.0 |
-| Runtime error vs target (absolute) | 7.8% | 4.3% |
-| Frames ending at a clause boundary (comma, colon, dash) | 0.0 | 1.5 |
+| Runtime error vs target (absolute) | 9.7% | 4.3% |
+| Frames ending at a clause boundary (comma, colon, dash) | 0.0 | 1.9 |
 | Frames ending mid-clause | 0.0 | 0.0 |
-| Worst picture/voice drift on a fixed grid, s | 30.0 | 18.3 |
-| Problems flagged by the checks | 3.3 | 0.0 |
-| Tokens in / out | 31,807 / 31,301 | 90,888 / 80,339 |
-| Cost, USD | 0.044 | 0.119 |
-| Wall time, s | 166 | 406 |
+| Worst picture/voice drift on a fixed grid, s | 36.1 | 17.5 |
+| Problems flagged by the checks | 3.7 | 0.1 |
+| Tokens in / out | 30,823 / 30,396 | 86,493 / 76,508 |
+| Cost, USD | 0.043 | 0.113 |
+| Wall time, s | 159 | 388 |
 
 Both variants are scored on their whole narration, call to action included: the pipeline speaks it as an extra frame after its 60 cut frames, the baseline inside its 60 slots. The pipeline's tokens and cost include the facts query. Figures are numbers in digits or words other than 0-10, 100 and 1,000.
 
@@ -46,15 +46,19 @@ Both variants are scored on their whole narration, call to action included: the 
 | What would happen if you fell into Jupiter? | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | +12% / +2% | 3 / 0 | 0.042 / 0.070 |
 | Why do we only ever see one side of the Moon? | 0 / 0 | 0 / 0 | 1 / 0 | 0 / 0 | +7% / -7% | 4 / 0 | 0.046 / 0.134 |
 | What if you had a teaspoon of a neutron star? | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | +12% / +3% | 4 / 0 | 0.047 / 0.140 |
-| How does an octopus change colour in a fraction of a second? | not run: API error | | | | | | |
-| Why can't you tickle yourself? | not run: API error | | | | | | |
-| What colours can bees see that we can't? | not run: API error | | | | | | |
+| How does an octopus change colour in a fraction of a second? | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | +15% / +3% | 4 / 0 | 0.039 / 0.116 |
+| Why can't you tickle yourself? | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | +9% / +9% | 5 / 1 | 0.041 / 0.062 |
+| What colours can bees see that we can't? | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | +16% / -1% | 4 / 0 | 0.040 / 0.129 |
 
 </details>
 
 Raw outputs and metrics: `eval/runs/20260930T164030Z/`.
 
 <!-- /EVAL RESULTS -->
+
+**What the rerun shows.** The failure that started this design did not reproduce. With today's writing model, one request with fixed slots gave no duplicate frames on any of the nine topics, at 60 slots or at 80, the format the production numbers were measured on ([80-slot baseline run](eval/runs/20260930T185156Z/results.md)). I can't separate how much of that is the newer model and how much is the production templates, which were longer than the baseline prompt here. What the pipeline still buys on these topics is timing and grounding: the runtime lands within 4.3% of the target instead of 9.7%, picture and voice drift apart by at most 17.5 s instead of 36.1 s, and each script carries 2.4 figures, all traceable to the collected facts, against 0.1 in the baseline. It costs 2.6 times as much and takes 2.4 times as long.
+
+The run also found a bug. A script written for a narrator spells numbers out, and the check for figures missing from the facts only read digits, so it never fired. It now reads "about twenty kilometers" as 20 and "nineteen sixty-nine" as 1969 (`numbers.py`).
 
 ## How it works
 
@@ -99,7 +103,9 @@ For each of the 9 topics in `eval/topics.yaml` it collects facts once, then runs
 - **baseline**: one request for 60 narration lines in fixed 6-second slots, with the same channel card, word budget and originality rules written into the prompt, the way the production templates had them. No facts, no checks, no repairs.
 - **pipeline**: facts, prose, checks and up to two repairs, then the cut.
 
-Both outputs are scored on their final frames by the same functions: duplicates, repeated phrases, paraphrased neighbours, numbers not in the facts, overstated claims, runtime error against the target, frames ending mid-sentence, worst drift against a fixed 6-second grid, the number of problems the checks flag, tokens, cost and wall time. At the default model's list price the command estimates about $0.78, at most $1.01, prints that first and does nothing without `--yes`. The pipeline's tokens and cost include the facts query; the baseline's do not. It writes `eval/results.md`, raw outputs per topic under `eval/runs/<timestamp>/`, and with `--readme` puts the table right below the production numbers above.
+Both outputs are scored on their final frames by the same functions: duplicates, repeated phrases, paraphrased neighbours, numbers not in the facts, overstated claims, runtime error against the target, frames ending at a clause boundary and frames ending mid-clause, worst drift against a fixed 6-second grid, the number of problems the checks flag, tokens, cost and wall time. At the default model's list price the command estimates about $1.48, at most $2.31, prints that first and does nothing without `--yes`. The estimate is calibrated on the first run's token counts; the writing model spends most of its output on reasoning. The pipeline's tokens and cost include the facts query; the baseline's do not. It writes `eval/results.md`, raw outputs per topic under `eval/runs/<timestamp>/`, and with `--readme` puts the table right below the production numbers above.
+
+Other flags: `--only id,id` runs a subset of topics; `--merge eval/runs/<stamp>` runs failed or missing topics into an existing run (three topics of the first run hit an expired key and were completed this way); `--rescore eval/runs/<stamp>` recomputes every metric from the saved outputs without calling a model; `--frames 80` changes the number of frames at the same 6 seconds per frame; `--baseline-only` skips facts and the pipeline (about $0.53 for nine topics at 80 frames).
 
 ## Usage
 
@@ -110,7 +116,7 @@ python -m narration check out/<id>/script.json --channel space --facts out/<id>/
 python -m narration cut my_script.txt --channel history
 ```
 
-`write` runs facts, the script with repairs and the cut, and with `--visuals` also stage 2. It prints an estimate first (at most about $0.12 for one video with visuals), saves `facts.json` and `script.json` before anything that can fail, then writes the storyboard as JSON and Markdown. `check` and `cut` are free and also take a plain text file with one chapter per paragraph. A channel is a YAML card (`narration/channels/`): the role and direction for the writer, the recurring character and its description, the call to action, the reference sheet names and the measured pace of the voice. Pass a path to use your own.
+`write` runs facts, the script with repairs and the cut, and with `--visuals` also stage 2. It prints an estimate first (about $0.20, at most $0.30 for one video with visuals), saves `facts.json` and `script.json` before anything that can fail, then writes the storyboard as JSON and Markdown. `check` and `cut` are free and also take a plain text file with one chapter per paragraph. A channel is a YAML card (`narration/channels/`): the role and direction for the writer, the recurring character and its description, the call to action, the reference sheet names and the measured pace of the voice. Pass a path to use your own.
 
 Models are configurable with `--model` and `--research-model`; the defaults are `openai/gpt-5.6-luna-pro` for writing (strict JSON schema output, high reasoning effort) and `perplexity/sonar` for facts. There is deliberately no fallback model: a refusal or a timeout stops the run instead of silently switching to something else.
 
@@ -139,13 +145,15 @@ tests/              offline; a fake model replays scripted replies
 ## Limitations
 
 - The checks measure form, not truth. They catch repetition, figures that are not in the collected facts and claims stated more firmly than their status allows, but not a wrong fact from the search model or a clumsy sentence. In production a person still read every script before it went on.
-- The eval scores both variants with the pipeline's own checks, and the pipeline repairs against those checks, so the "problems flagged" row favours it by construction and mixes real defects with style rules. The rows for duplicates, numbers not in the facts, drift and runtime error are counts of defects that do not depend on my style rules. It is one run per topic on nine topics, not a benchmark.
+- The eval scores both variants with the pipeline's own checks, and the pipeline repairs against those checks, so the "problems flagged" row favours it by construction and mixes real defects with style rules. The rows for duplicates, figures not in the facts, mid-clause breaks, drift and runtime error are counts of defects that do not depend on my style rules. It is one run per topic on nine topics, not a benchmark.
+- The baseline prompt is my reconstruction of the production templates, not the templates themselves, so the eval cannot say why the production duplicates happened.
 - A repair rewrites the whole script with a located list of problems; it does not touch only the affected chapters, so a repair can still disturb text that was fine. Keeping the best-scoring version limits the damage.
 - The syllable counter is an English vowel-group heuristic, and the pace values in the cards were measured on specific production voices. A different voice needs its own two recordings.
 - English narration only.
 
 ## What I'd do next
 
+- Find what actually caused the production duplicates: run the original templates against the current model and against the model of that time, and keep whichever part of the pipeline the answer still justifies.
 - Repair only the chapters a local problem points to and keep the rest unchanged, falling back to a whole-script repair for global problems such as length or rhythm.
 - Add a blind preference test, human or model-judged, on top of the counts: the eval does not measure whether a script is interesting.
 - Fit the pace of a new voice automatically from rendered audio instead of by hand.

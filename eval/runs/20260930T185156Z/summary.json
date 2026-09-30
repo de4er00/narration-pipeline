@@ -1,0 +1,22 @@
+{
+  "baseline": {
+    "frames": 80.0,
+    "words": 1140.888888888889,
+    "duplicate_frames": 0.0,
+    "repeated_phrases": 0.0,
+    "paraphrased_neighbours": 0.0,
+    "figures": 0.1111111111111111,
+    "unsourced_numbers": null,
+    "overstated_claims": null,
+    "runtime_s": 523.6444444444444,
+    "runtime_error": 0.09091111111111111,
+    "clause_breaks": 0.0,
+    "mid_clause_breaks": 0.0,
+    "worst_drift_s": 44.9,
+    "problems": 3.6666666666666665,
+    "tokens_in": 34710.444444444445,
+    "tokens_out": 35709.444444444445,
+    "usd": 0.049791111111111105,
+    "seconds": 163.25555555555556
+  }
+}
