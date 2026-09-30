@@ -1,0 +1,115 @@
+# narration-pipeline
+
+A pipeline that writes the narration for six-minute illustrated explainer videos and cuts it into 60 frames. It collects facts with a confidence status, has a model write continuous prose to a word budget measured from the narrator's voice, runs about 25 deterministic checks and sends the script back with a list of located problems, then partitions the text into frames with an exact dynamic program over speech duration. An optional second stage designs one picture per frame and assembles the image and animation prompts in code. I built and ran it in production for a studio with several explainer channels; this repository is the generator extracted from that code, with the channels replaced by neutral examples (history, space, science).
+
+## Results
+
+Measured in production; the production scripts are not published. The first comparison can be rerun on public topics with `python -m narration eval` (see [Reproduce](#reproduce)).
+
+| | Before | After |
+|---|---|---|
+| Verbatim-duplicate frames per script | 15-19 of 80 (36 scripts, one request with 80 fixed frame slots) | 0 (prose first, frames cut by code, checks with repairs) |
+| Concrete numbers in a script | 0 (same video, same model, no facts on input) | 15 (with facts on input) |
+| Fact collection, one query | $0.337, 201 s, 1,828,447 input tokens (writing model with a web-search plugin) | $0.006, 7 s, 179 input tokens (`perplexity/sonar`), about 60x cheaper |
+
+<!-- EVAL RESULTS -->
+
+## How it works
+
+```
+topic ─► facts with statuses ─► prose to a word budget ─► checks ──► cut into frames ─► [visuals ─► prompts] ─► JSON + Markdown
+                                        ▲                   │
+                                        └── repair (max 2) ◄┘
+```
+
+**Prose first, frames later.** The old approach asked the model for 80 frames in fixed slots. As soon as a model gets a form with N cells, it fills the form: repeated lines, filler phrases, paraphrases of the previous frame. Here the model writes continuous chapters to a word budget, and code decides where frames begin and end (`pipeline.py`).
+
+**Facts with a status** (`research.py`). A search model returns six facts, each marked `confirmed`, `reported`, `disputed` or `speculation`, and each status comes with a rule for how firmly the script may state it. Two checks use the facts afterwards: every number in the script must trace to a fact (a rounding of a known value passes, a more precise figure does not, years must match exactly), and a disputed or speculative fact must not be stated flatly. I use Sonar here because it searches on the provider side and returns a summary with links; a web plugin on the writing model pulled whole pages into the context and cost 60 times more for facts of the same quality.
+
+**Checks in code, repairs by list** (`checks.py`, `pipeline.py`). Every check exists because the defect shipped at least once: verbatim duplicates, repeated openings and four-word phrases, neighbours that retell each other, a hook that opens on a caveat or a citation, written rather than spoken register, a flat rhythm with no short sentences, abstract nouns, semicolons and long lists, an ending about the past instead of the viewer, a call to action that turned into advice, production words spoken aloud, and the length against the voice's budget. When a check fails, the whole script goes back to the model once or twice with the exact problems and their positions. Every version is scored and the one with the fewest problems ships, not the last one: in five cases out of five, a repair for length introduced new problems with the rhythm or the call to action. Notes that the text cannot fix (no facts found) are shown but never trigger a paid repair.
+
+**Speech time from syllables, per voice** (`timing.py`). Duration is `syllables / rate + sentences * pause`, with both parameters measured per voice from two recordings. Across five production voices the rate ranged from 3.66 to 6.30 syllables per second; the same 1,420 words ran 8.0 minutes with one voice and 13.0 with another. So the word budget in the prompt is computed from the voice, not fixed.
+
+**An exact cut** (`timing.py`). Each chapter gets frames in proportion to its duration, capped by how many pieces it can physically yield. Inside a chapter, a dynamic program splits sentences into exactly N frames, minimising the squared deviation from the frame length plus a penalty for ending a frame mid-sentence. A greedy pass gives almost the same total drift; the DP is there because it never breaks a sentence it does not have to, halves the spread of frame lengths, and works per chapter. Abbreviations, titles and names like "the Wow! Signal" do not end sentences.
+
+**Pictures and prompts** (`visuals.py`, `frame_prompts.py`). Optional stage 2 decides per frame what is seen, whether the recurring character is in it, the shot size and one motion. The prompts are then assembled in code from those decisions: the reference sheets are attached and named by position, the character's looks are never described in words (on a test frame, a 4,282-character prompt matched the sheet's style worse than a 702-character one), and the animation prompt describes one action at one speed with a barely perceptible push-in, because in 77 clips a locked camera jittered in 30-56% of cases and a push-in in 10%.
+
+## Reproduce
+
+The tests run offline with a scripted fake model:
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+pytest
+```
+
+The eval needs an [OpenRouter](https://openrouter.ai) key and spends real money:
+
+```bash
+export OPENROUTER_API_KEY=...                    # Windows: set OPENROUTER_API_KEY=...
+python -m narration eval                         # prints the estimate, spends nothing
+python -m narration eval --yes --readme README.md
+```
+
+For each of the 9 topics in `eval/topics.yaml` it collects facts once, then runs:
+
+- **baseline**: one request for 60 narration lines in fixed 6-second slots, with the same channel card, word budget and originality rules written into the prompt, the way the production templates had them. No facts, no checks, no repairs.
+- **pipeline**: facts, prose, checks and up to two repairs, then the cut.
+
+Both outputs are scored on their final frames by the same functions: duplicates, repeated phrases, paraphrased neighbours, numbers not in the facts, overstated claims, runtime error against the target, frames ending mid-sentence, worst drift against a fixed 6-second grid, the number of problems the checks flag, tokens, cost and wall time. Expected cost at the default model's list price is about $0.80, at most $1.01; the command prints its own estimate and does nothing without `--yes`. It writes `eval/results.md`, raw outputs per topic under `eval/runs/<timestamp>/`, and with `--readme` puts the table right below the production numbers above.
+
+## Usage
+
+```bash
+python -m narration research "Why do we only ever see one side of the Moon?" --channel space
+python -m narration write "Why do we only ever see one side of the Moon?" --channel space --visuals
+python -m narration check out/<id>/script.json --channel space --facts out/<id>.facts.json
+python -m narration cut my_script.txt --channel history
+```
+
+`write` runs facts, the script with repairs and the cut, and with `--visuals` also stage 2; it prints an estimate first (about $0.12 at most for one video with visuals) and saves `script.json` before anything that can fail, then a storyboard as JSON and Markdown. `check` and `cut` are free and also take a plain text file with one chapter per paragraph. A channel is a YAML card (`narration/channels/`): the role and direction for the writer, the recurring character and its description, the call to action, the reference sheet names and the measured pace of the voice. Pass a path to use your own.
+
+Models are configurable with `--model` and `--research-model`; the defaults are `openai/gpt-5.6-luna-pro` for writing (strict JSON schema output, high reasoning effort) and `perplexity/sonar` for facts. There is deliberately no fallback model: a refusal or a timeout stops the run instead of silently switching to something else.
+
+## Layout
+
+```
+narration/
+  cards.py          channel and video cards, word budget per voice
+  research.py       stage 0: facts with statuses, unsourced-number and overstatement checks
+  script.py         stage 1 prompts: writing and repair
+  pipeline.py       the writing loop (checks, repairs, best version) and the cut
+  checks.py         deterministic checks
+  timing.py         syllable-based duration, per-voice pace, exact partition
+  visuals.py        stage 2: one visual decision per frame
+  frame_prompts.py  image and animation prompts assembled in code
+  storyboard.py     call-to-action frame, JSON and Markdown output
+  baseline.py       the one-request, fixed-slot approach, for the eval
+  evaluate.py       metrics, eval harness, report
+  llm.py            OpenRouter client, prices and estimates
+  cli.py
+  channels/         history, space, science
+eval/topics.yaml
+tests/              offline; a fake model replays scripted replies
+```
+
+## Limitations
+
+- The checks measure form, not truth. They catch repetition, figures that are not in the collected facts and claims stated more firmly than their status allows, but not a wrong fact from the search model or a clumsy sentence. In production a person still read every script before it went on.
+- The eval judges both variants with the pipeline's own checks, and the pipeline is built to pass them, so the "problems flagged" row favours it by construction. Duplicates, unsourced numbers, drift and runtime error are plain counts and do not have that bias. It is one run per topic on nine topics, not a benchmark.
+- A repair rewrites the whole script with a located list of problems; it does not touch only the affected chapters, so a repair can still disturb text that was fine. Keeping the best-scoring version limits the damage.
+- The syllable counter is an English vowel-group heuristic, and the pace values in the cards were measured on specific production voices. A different voice needs its own two recordings.
+- English narration only.
+
+## What I'd do next
+
+- Repair only the chapters a local problem points to and keep the rest unchanged, falling back to a whole-script repair for global problems such as length or rhythm.
+- Add a blind preference test, human or model-judged, on top of the counts: the eval does not measure whether a script is interesting.
+- Fit the pace of a new voice automatically from rendered audio instead of by hand.
+- Run each topic several times and report the spread.
+- Use a pronunciation dictionary for names and numbers in the syllable count.
+
+## License
+
+MIT
