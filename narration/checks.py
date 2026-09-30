@@ -12,6 +12,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from .cards import ChannelCard
+from .numbers import figures
 from .timing import _WORD_RE, estimate_seconds, split_sentences
 
 BANNED_SCAFFOLDS = (
@@ -394,13 +395,12 @@ def questions(texts: list[str], minimum: int = 1) -> list[Problem]:
 
 
 def concreteness(texts: list[str], ceiling_per_100: float = 1.60) -> list[Problem]:
-    """A ceiling on numbers and no floor: 32 numbers in 823 words once made a
-    script sound like a report read aloud."""
+    """A ceiling on figures and no floor: 32 numbers in 823 words once made a
+    script sound like a report read aloud. Spelled-out figures count too."""
     words = _tokens(" ".join(texts))
     if not words:
         return []
-    nums = len(re.findall(r"\b\d[\d,.]*\b", " ".join(texts)))
-    density = nums / len(words) * 100
+    density = len(figures(" ".join(texts))) / len(words) * 100
     if density <= ceiling_per_100:
         return []
     return [Problem("overload", f"{density:.2f} numbers per 100 words, ceiling "

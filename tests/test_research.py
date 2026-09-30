@@ -168,3 +168,46 @@ def test_a_year_is_never_accepted_as_a_rounding():
     assert unsourced_numbers("It happened in 1947.", facts) == []
     assert len(unsourced_numbers("It happened in 1960.", facts)) == 1
     assert len(unsourced_numbers("It happened in 1900.", facts)) == 1
+
+
+# --- spelled-out numbers -----------------------------------------------------
+
+JUPITER = [
+    Fact("The Galileo probe's transmitter failed after 61.4 minutes because it was "
+         "about 112 miles below its entry point and encountering about 22.7 "
+         "atmospheres of pressure.", "confirmed", "NASA"),
+    Fact("At Jupiter's core, NASA says the pressure would be as much as 650 million "
+         "pounds pressing on every square inch of your body.", "confirmed", "NASA"),
+    Fact("A neutron star packs about 1.4 Suns into a sphere about 20 kilometers "
+         "across.", "confirmed", "NASA"),
+]
+
+
+@pytest.mark.parametrize("sentence", [
+    "The probe was roughly one hundred twelve miles below its entry point.",
+    "Around it, pressure had climbed to about twenty-three times the pressure at "
+    "Earth's surface.",
+    "NASA says pressure there could reach six hundred fifty million pounds on every "
+    "square inch of your body.",
+    "A neutron star packs about one point four Suns into a sphere about twenty "
+    "kilometers across.",
+    "It lasted about sixty-one minutes.",
+])
+def test_spelled_out_figures_from_the_facts_pass(sentence):
+    assert unsourced_numbers(sentence, JUPITER) == []
+
+
+def test_a_spelled_out_figure_absent_from_the_facts_is_flagged():
+    [msg] = unsourced_numbers("The probe sank for about fifty-eight minutes.", JUPITER)
+    assert '"fifty-eight" (58)' in msg
+
+
+def test_a_spelled_out_year_is_compared_exactly():
+    facts = _facts("The comet was first recorded in 1947.")
+    assert unsourced_numbers("It happened in nineteen forty-seven.", facts) == []
+    assert len(unsourced_numbers("It happened in nineteen sixty.", facts)) == 1
+
+
+def test_spelled_out_small_counts_stay_harmless():
+    assert unsourced_numbers("Three layers, two probes and one hundred questions.",
+                             _facts("no digits")) == []

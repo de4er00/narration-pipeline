@@ -352,3 +352,11 @@ def test_missing_facts_are_a_note_not_a_paid_repair():
 def test_phrase_lists_are_lowercase(name):
     # Matching lowercases the text, so an uppercase entry would never match.
     assert all(x == x.lower() for x in getattr(checks, name))
+
+
+def test_spelled_out_figures_count_toward_the_ceiling():
+    report = ("It fell two hundred fifty miles in forty-seven minutes at eighty-two "
+              "degrees under sixty-one bars. ") * 4
+    assert concreteness([report])
+    assert not concreteness(["You fall. One probe, three layers, a thousand years, "
+                             "and nobody sees you go. " * 3])

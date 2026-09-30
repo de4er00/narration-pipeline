@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .cards import ChannelCard
 from .llm import RESEARCH_MODEL, ChatClient, LLMError
+from .numbers import HARMLESS, find_numbers
 
 logger = logging.getLogger(__name__)
 
@@ -274,16 +275,6 @@ def overstated(narration: str, facts: list[Fact]) -> list[str]:
     return out
 
 
-# Numbers that say nothing about the world ("three ways", "one gate").
-_HARMLESS_NUMBERS = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-                     "100", "1000"}
-
-
-def _digits(text: str) -> list[str]:
-    # "1,519" in the script and "1519" in the source are the same number.
-    return re.findall(r"\d+(?:\.\d+)?", text.replace(",", ""))
-
-
 def _significant(n: str) -> int:
     return max(1, len(n.replace(".", "").strip("0")))
 
@@ -305,21 +296,20 @@ def unsourced_numbers(narration: str, facts: list[Fact]) -> list[str]:
     """Numbers in the script that appear nowhere in the collected facts.
 
     With little material the model topped up from memory: probably true, and
-    untraceable. Removing a figure is a repair the model does reliably.
+    untraceable. Removing a figure is a repair the model does reliably. Both
+    sides are compared as values, so "twenty kilometers" matches "20 km".
     """
-    known: set[str] = set()
-    for f in facts:
-        known.update(_digits(f.claim))
-        known.update(_digits(f.source or ""))
+    known = {n.value for f in facts
+             for n in find_numbers(f.claim) + find_numbers(f.source or "")}
     out: list[str] = []
     seen: set[str] = set()
     for s in (s for s in _SENTENCE_END.split(narration) if s.strip()):
-        for n in _digits(s):
-            if n in known or n in _HARMLESS_NUMBERS or n in seen:
+        for n in find_numbers(s):
+            v = n.value
+            if v in known or v in HARMLESS or v in seen or _rounds_known(v, known):
                 continue
-            if _rounds_known(n, known):
-                continue
-            seen.add(n)
-            out.append(f'the number {n} is not in the facts: "{s.strip()[:110]}". '
+            seen.add(v)
+            said = n.text if n.text == v else f'"{n.text}" ({v})'
+            out.append(f'the number {said} is not in the facts: "{s.strip()[:110]}". '
                        f"Remove it or make the point without the figure")
     return out
