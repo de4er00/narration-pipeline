@@ -1,0 +1,8 @@
+{
+  "topic": {
+    "id": "octopus-colour",
+    "channel": "science",
+    "title": "How does an octopus change colour in a fraction of a second?"
+  },
+  "error": "OpenRouter refused: HTTP 401 {\"error\":{\"message\":\"API key expired.\",\"code\":401,\"metadata\":{\"headers\":{\"WWW-Authenticate\":\"Bearer error=\\\"invalid_token\\\", error_description=\\\"API key expired\\\"\"}}}}"
+}

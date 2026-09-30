@@ -1,0 +1,8 @@
+{
+  "topic": {
+    "id": "bees-see-colours",
+    "channel": "science",
+    "title": "What colours can bees see that we can't?"
+  },
+  "error": "OpenRouter refused: HTTP 401 {\"error\":{\"message\":\"API key expired.\",\"code\":401,\"metadata\":{\"headers\":{\"WWW-Authenticate\":\"Bearer error=\\\"invalid_token\\\", error_description=\\\"API key expired\\\"\"}}}}"
+}
