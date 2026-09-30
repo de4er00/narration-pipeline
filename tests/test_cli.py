@@ -111,6 +111,7 @@ def test_write_runs_every_stage_and_saves_the_script_first(monkeypatch, tmp_path
                    "--id", "jupiter", "--visuals", "--out", str(tmp_path)])
     assert rc == 0
     out_dir = tmp_path / "jupiter"
+    assert len(json.loads((out_dir / "facts.json").read_text(encoding="utf-8"))["facts"]) == 2
     script = json.loads((out_dir / "script.json").read_text(encoding="utf-8"))
     assert script["repairs"] == 1
     board = json.loads((out_dir / "jupiter.json").read_text(encoding="utf-8"))

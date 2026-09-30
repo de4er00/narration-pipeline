@@ -66,16 +66,17 @@ def cmd_write(args: argparse.Namespace) -> int:
           else f"No price known for {args.model}; cost will be reported after the run")
 
     client = _client(args)
+    out = Path(args.out) / video.video_id
     res: Research | None = None
     if args.facts:
         res = Research.load(Path(args.facts))
     elif not args.no_research:
         res = collect(args.topic, card, client, model=args.research_model)
+        res.save(out / "facts.json")
     if res is not None:
         video.key_facts = res.claims
         print(f"Facts: {len(res.facts)} {res.by_status}")
 
-    out = Path(args.out) / video.video_id
     script = write_script(video, client, research=res, siblings=args.sibling,
                           max_repairs=args.repairs)
     # The script is the expensive part; it is saved before anything that can fail.

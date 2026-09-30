@@ -47,7 +47,7 @@ pytest
 The eval needs an [OpenRouter](https://openrouter.ai) key and spends real money:
 
 ```bash
-export OPENROUTER_API_KEY=...                    # Windows: set OPENROUTER_API_KEY=...
+export OPENROUTER_API_KEY=...                    # PowerShell: $env:OPENROUTER_API_KEY = "..."
 python -m narration eval                         # prints the estimate, spends nothing
 python -m narration eval --yes --readme README.md
 ```
@@ -57,18 +57,18 @@ For each of the 9 topics in `eval/topics.yaml` it collects facts once, then runs
 - **baseline**: one request for 60 narration lines in fixed 6-second slots, with the same channel card, word budget and originality rules written into the prompt, the way the production templates had them. No facts, no checks, no repairs.
 - **pipeline**: facts, prose, checks and up to two repairs, then the cut.
 
-Both outputs are scored on their final frames by the same functions: duplicates, repeated phrases, paraphrased neighbours, numbers not in the facts, overstated claims, runtime error against the target, frames ending mid-sentence, worst drift against a fixed 6-second grid, the number of problems the checks flag, tokens, cost and wall time. Expected cost at the default model's list price is about $0.80, at most $1.01; the command prints its own estimate and does nothing without `--yes`. It writes `eval/results.md`, raw outputs per topic under `eval/runs/<timestamp>/`, and with `--readme` puts the table right below the production numbers above.
+Both outputs are scored on their final frames by the same functions: duplicates, repeated phrases, paraphrased neighbours, numbers not in the facts, overstated claims, runtime error against the target, frames ending mid-sentence, worst drift against a fixed 6-second grid, the number of problems the checks flag, tokens, cost and wall time. At the default model's list price the command estimates about $0.78, at most $1.01, prints that first and does nothing without `--yes`. The pipeline's tokens and cost include the facts query; the baseline's do not. It writes `eval/results.md`, raw outputs per topic under `eval/runs/<timestamp>/`, and with `--readme` puts the table right below the production numbers above.
 
 ## Usage
 
 ```bash
 python -m narration research "Why do we only ever see one side of the Moon?" --channel space
 python -m narration write "Why do we only ever see one side of the Moon?" --channel space --visuals
-python -m narration check out/<id>/script.json --channel space --facts out/<id>.facts.json
+python -m narration check out/<id>/script.json --channel space --facts out/<id>/facts.json
 python -m narration cut my_script.txt --channel history
 ```
 
-`write` runs facts, the script with repairs and the cut, and with `--visuals` also stage 2; it prints an estimate first (about $0.12 at most for one video with visuals) and saves `script.json` before anything that can fail, then a storyboard as JSON and Markdown. `check` and `cut` are free and also take a plain text file with one chapter per paragraph. A channel is a YAML card (`narration/channels/`): the role and direction for the writer, the recurring character and its description, the call to action, the reference sheet names and the measured pace of the voice. Pass a path to use your own.
+`write` runs facts, the script with repairs and the cut, and with `--visuals` also stage 2. It prints an estimate first (at most about $0.12 for one video with visuals), saves `facts.json` and `script.json` before anything that can fail, then writes the storyboard as JSON and Markdown. `check` and `cut` are free and also take a plain text file with one chapter per paragraph. A channel is a YAML card (`narration/channels/`): the role and direction for the writer, the recurring character and its description, the call to action, the reference sheet names and the measured pace of the voice. Pass a path to use your own.
 
 Models are configurable with `--model` and `--research-model`; the defaults are `openai/gpt-5.6-luna-pro` for writing (strict JSON schema output, high reasoning effort) and `perplexity/sonar` for facts. There is deliberately no fallback model: a refusal or a timeout stops the run instead of silently switching to something else.
 
@@ -97,7 +97,7 @@ tests/              offline; a fake model replays scripted replies
 ## Limitations
 
 - The checks measure form, not truth. They catch repetition, figures that are not in the collected facts and claims stated more firmly than their status allows, but not a wrong fact from the search model or a clumsy sentence. In production a person still read every script before it went on.
-- The eval judges both variants with the pipeline's own checks, and the pipeline is built to pass them, so the "problems flagged" row favours it by construction. Duplicates, unsourced numbers, drift and runtime error are plain counts and do not have that bias. It is one run per topic on nine topics, not a benchmark.
+- The eval scores both variants with the pipeline's own checks, and the pipeline repairs against those checks, so the "problems flagged" row favours it by construction and mixes real defects with style rules. The rows for duplicates, numbers not in the facts, drift and runtime error are counts of defects that do not depend on my style rules. It is one run per topic on nine topics, not a benchmark.
 - A repair rewrites the whole script with a located list of problems; it does not touch only the affected chapters, so a repair can still disturb text that was fine. Keeping the best-scoring version limits the damage.
 - The syllable counter is an English vowel-group heuristic, and the pace values in the cards were measured on specific production voices. A different voice needs its own two recordings.
 - English narration only.
