@@ -1,0 +1,32 @@
+# Topics for `python -m narration eval`. Three per bundled channel; each topic
+# runs once through the slot-filling baseline and once through the pipeline.
+topics:
+  - id: fire-before-matches
+    channel: history
+    title: How did people start a fire before matches?
+  - id: first-boats
+    channel: history
+    title: How did the first people cross the sea to Australia?
+  - id: ice-age-winter
+    channel: history
+    title: How did people survive an Ice Age winter without a house?
+
+  - id: fall-into-jupiter
+    channel: space
+    title: What would happen if you fell into Jupiter?
+  - id: moon-same-face
+    channel: space
+    title: Why do we only ever see one side of the Moon?
+  - id: neutron-star-spoon
+    channel: space
+    title: What if you had a teaspoon of a neutron star?
+
+  - id: octopus-colour
+    channel: science
+    title: How does an octopus change colour in a fraction of a second?
+  - id: cant-tickle-yourself
+    channel: science
+    title: Why can't you tickle yourself?
+  - id: bees-see-colours
+    channel: science
+    title: What colours can bees see that we can't?
